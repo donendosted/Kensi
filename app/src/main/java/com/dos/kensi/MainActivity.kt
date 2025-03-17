@@ -4,11 +4,13 @@ import android.content.ContentUris
 import android.content.Context
 import android.os.Bundle
 import android.provider.MediaStore
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,12 +53,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.dos.kensi.ui.theme.KensiTheme
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        installSplashScreen()
         enableEdgeToEdge()
         setContent {
             KensiTheme {
@@ -76,12 +80,14 @@ fun SongFrag(context: Context) {
     var songList by remember { mutableStateOf(emptyList<SongData>()) }
     var isRefreshing: Boolean by remember { mutableStateOf(false) }
     var songs = remember { Songs(context) }
-    var openPlaybackDialog by remember { mutableStateOf(false) }
+    var openPlayscreenDialog by remember { mutableStateOf(false) }
     var playstate by remember { mutableIntStateOf(R.drawable.play) }
     var currentsong by remember { mutableStateOf("Song to be played")}
     var songDuration by remember { mutableFloatStateOf(0f) }
     var songCursor by remember { mutableFloatStateOf(0f) }
     var progress by remember { mutableFloatStateOf(0f) }
+    var openQueueScreenDialog by remember { mutableStateOf(false) }
+    var queue by remember { mutableStateOf(emptyList<Int>())}
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -99,8 +105,8 @@ fun SongFrag(context: Context) {
     }
 
     //PLAY SCREEN
-    if (openPlaybackDialog) {
-        Dialog(onDismissRequest = {openPlaybackDialog = false}) {
+    if (openPlayscreenDialog) {
+        Dialog(onDismissRequest = {openPlayscreenDialog = false}) {
             Card (
                 modifier = Modifier
                     .fillMaxWidth()
@@ -187,6 +193,61 @@ fun SongFrag(context: Context) {
         }
     }
 
+    //QUEUE SCREEN
+    if (openQueueScreenDialog){
+        Dialog(onDismissRequest = {openPlayscreenDialog=false}) {
+            queue = songs.getQueue()
+            Card (
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(550.dp)
+            ){ Scaffold (
+                topBar = {TopAppBar(
+                    title = {
+                        Text(
+                            text = "Queue",
+                            fontSize = 25.sp
+                        ) },
+                    actions = {
+                        IconButton(onClick = {/*TODO Radio*/ }) {
+                            Icon(
+                                painterResource(R.drawable.recyclebin),
+                                contentDescription = "clear queue",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        IconButton(onClick = { /*TODO sochenge */ }) {
+                            Icon(
+                                painter = painterResource(R.drawable.radio),
+                                contentDescription = "Radio",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        IconButton(onClick = {openQueueScreenDialog=false}) {
+                            Icon(
+                                painter = painterResource(R.drawable.cross),
+                                contentDescription = "Close menu",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                )}
+            )
+            { values ->
+                    LazyColumn (
+                        Modifier.padding(values)
+                    ){
+                        items(queue.size) { index ->
+                            Text(
+                                text = songList[index].name
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     //MAIN SCREEN
     Scaffold(
         modifier = Modifier
@@ -206,8 +267,10 @@ fun SongFrag(context: Context) {
                 ),
 
                 actions = {
-                    IconButton(onClick = {/*TODO Radio*/}) {
-                        Icon(painterResource(R.drawable.radio), contentDescription = "Radio",
+                    IconButton(onClick = {openQueueScreenDialog = true}) {
+                        Icon(
+                            painterResource(R.drawable.queue),
+                            contentDescription = "Radio",
                             modifier = Modifier.size(20.dp))
                     }
                     IconButton(onClick = { songList = listSongs(context) }) {
@@ -223,7 +286,7 @@ fun SongFrag(context: Context) {
 
         //PLAY SCREEN
         floatingActionButton = {
-            FloatingActionButton(onClick = {openPlaybackDialog = true }, shape = CircleShape) {
+            FloatingActionButton(onClick = {openPlayscreenDialog = true }, shape = CircleShape) {
                 Icon(
                     painter = painterResource(R.drawable.play),
                     contentDescription = "Song Screen",
@@ -235,7 +298,7 @@ fun SongFrag(context: Context) {
         //SEARCH PANEL
         bottomBar = {
             BottomAppBar (
-
+                // TODO kuch to karenge
             ) {
                 OutlinedTextField(
                     value = searchText,

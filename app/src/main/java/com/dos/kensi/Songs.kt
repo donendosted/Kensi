@@ -4,11 +4,13 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.net.Uri
+import java.nio.file.Files.size
 
 class Songs (private val context: Context) {
     private var mediaPlayer: MediaPlayer? = null
     private var currentSongId: Int? = null
     private val queue = mutableListOf<Int>()
+    private val sonq = mutableListOf<String>()
 
     fun play(songList: List<SongData>, id: Int) {
         stop()
@@ -89,5 +91,9 @@ class Songs (private val context: Context) {
 
     fun seekTo(position: Int) {
         mediaPlayer?.seekTo(position)
+    }
+
+    fun getQueue(): MutableList<Int> {
+        return queue
     }
 }
