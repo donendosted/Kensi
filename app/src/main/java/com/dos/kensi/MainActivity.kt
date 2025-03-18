@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -196,7 +197,7 @@ fun SongFrag(context: Context) {
     //QUEUE SCREEN
     if (openQueueScreenDialog){
         Dialog(onDismissRequest = {openPlayscreenDialog=false}) {
-            queue = songs.getQueue()
+            //queue = songs[queue]
             Card (
                 modifier = Modifier
                     .fillMaxWidth()
@@ -237,9 +238,9 @@ fun SongFrag(context: Context) {
                     LazyColumn (
                         Modifier.padding(values)
                     ){
-                        items(queue.size) { index ->
+                        items(queue.size) { ind ->
                             Text(
-                                text = songList[index].name
+                                text = songList[ind].name
                             )
                         }
                     }
@@ -273,7 +274,10 @@ fun SongFrag(context: Context) {
                             contentDescription = "Radio",
                             modifier = Modifier.size(20.dp))
                     }
-                    IconButton(onClick = { songList = listSongs(context) }) {
+                    IconButton(onClick = {
+                        songList = listSongs(context)
+                        Toast.makeText(context, "Songs Refreshed", Toast.LENGTH_SHORT)
+                    }) {
                         Icon(
                             painter = painterResource(R.drawable.refr),
                             contentDescription = "Refresh",
@@ -315,7 +319,10 @@ fun SongFrag(context: Context) {
         //PULL TO REFRESH
         PullToRefreshBox(
             isRefreshing = isRefreshing,
-            onRefresh = { songList = listSongs(context) }
+            onRefresh = {
+                songList = listSongs(context)
+                Toast.makeText(context, "Songs Refreshed", Toast.LENGTH_SHORT)
+            }
         ) {
             LazyColumn(
                 modifier = Modifier
@@ -339,6 +346,7 @@ fun SongFrag(context: Context) {
                             .clickable{
                                 songs.play(songList, songList[index].songID)
                                 currentsong = songList[index].name
+                                Toast.makeText(context,"Playing $currentsong", Toast.LENGTH_SHORT).show()
                             }) {
                             Text(
                                 text = songList[index].name,
@@ -363,21 +371,26 @@ fun listSongs(context: Context): MutableList<SongData> {
     val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
     val projection = arrayOf(
         MediaStore.Audio.Media.DISPLAY_NAME,
-        MediaStore.Audio.Media._ID
+        MediaStore.Audio.Media._ID,
+        MediaStore.Audio.Media.SIZE
     )
 
     val cursor = context.contentResolver.query(collection, projection, null, null, null)
 
     cursor?.use {
         val nameColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+        val sizeColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
 
         while (it.moveToNext()) {
             val name = it.getString(nameColumn)
+            val size = it.getLong(sizeColumn)
             val contentUri = ContentUris.withAppendedId(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 it.getLong(it.getColumnIndexOrThrow(MediaStore.Audio.Media._ID))
             )
-            songListTemp.add(SongData(songListTemp.size, name, contentUri))
+            if (size>10L) {
+                songListTemp.add(SongData(songListTemp.size, name, size, contentUri))
+            }
         }
     }
 

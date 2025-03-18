@@ -92,8 +92,4 @@ class Songs (private val context: Context) {
     fun seekTo(position: Int) {
         mediaPlayer?.seekTo(position)
     }
-
-    fun getQueue(): MutableList<Int> {
-        return queue
-    }
 }
