@@ -1,9 +1,12 @@
 package com.dos.kensi
 
 import android.content.ContentUris
+import android.content.ContentValues
+import android.content.ContentValues.TAG
 import android.content.Context
 import android.os.Bundle
 import android.provider.MediaStore
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,6 +26,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Card
+import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
@@ -30,6 +34,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -39,15 +44,17 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -93,11 +100,20 @@ fun SongFrag(context: Context) {
     var progress by remember { mutableFloatStateOf(0f) }
     var openQueueScreenDialog by remember { mutableStateOf(false) }
     var optionDialog by remember { mutableStateOf(false) }
-    var selected by remember { mutableIntStateOf(0) }
-    var selectedsong by remember { mutableStateOf("Nothing")}
-    var queueSongs by remember { mutableStateOf(emptyList<SongData>())}
+    var selected by remember { mutableStateOf<SongData?>(null) }
+    var queueSongs = remember { mutableStateListOf<SongData>() }
+    var repeatTint by remember { mutableStateOf(Color.Green) }
+    var tog by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    var showBottomSheet by remember { mutableStateOf(false) }
+    var optionNewPlaylist by remember { mutableStateOf(false) }
+    var newName: String by remember { mutableStateOf("") }
+    var renameDialog by remember { mutableStateOf(false) }
 
     songList = listSongs(context)
+
+    Log.d(TAG,"Just to keep log and tag imports")
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -111,6 +127,31 @@ fun SongFrag(context: Context) {
             }
 
             delay(500)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        queueSongs.clear()
+        queueSongs.addAll(songs.getQueue(songList))
+    }
+
+    LaunchedEffect(Unit) {
+        snapshotFlow { queueSongs.firstOrNull()?.name ?: "..." }
+            .collect { currentsong = it }
+    }
+    LaunchedEffect(Unit) {
+        snapshotFlow { queueSongs.toList() }
+            .collect { updatedQueue ->
+                queueSongs.clear()
+                queueSongs.addAll(updatedQueue)
+            }
+    }
+
+    LaunchedEffect(tog) {
+        if (tog){
+            repeatTint = Color.LightGray
+        } else {
+            repeatTint = Color.DarkGray
         }
     }
 
@@ -145,9 +186,9 @@ fun SongFrag(context: Context) {
                             onClick = {
                                 if (songs.isPlaying()){
                                     songs.pause()
-                                } else if (songs.isQueueEmpty()){
-
-                                }
+                                } else if (songs.isQueueEmpty()){ }
+                                else if (songs.isNotPrepared() && !songs.isQueueEmpty())
+                                {currentsong = songs.playFromQueue(queueSongs)}
                                 else {
                                     songs.resume()
                                 }
@@ -174,7 +215,13 @@ fun SongFrag(context: Context) {
 
                     //THE PREV, NEXT, SLIDER, AND SHUFFLE/REPEAT
                     Row {
-                        IconButton(onClick = {/*TODO: prev*/}) {
+                        IconButton(onClick = {
+                            if (progress>0.05){
+                                songs.seekTo(0)
+                            } else if (songs.existsHistory()){
+                                currentsong = songs.playFromHistory(songList)
+                            }
+                        }) {
                             Icon(painterResource(R.drawable.prev), contentDescription = "Previous",modifier = Modifier.size(15.dp))
                         }
 
@@ -183,21 +230,38 @@ fun SongFrag(context: Context) {
                         Slider(
                             value = progress,
                             onValueChange = { newValue ->
-                                songCursor = newValue * songDuration
+                                progress = newValue
+                            },
+                            onValueChangeFinished = {
+                                songCursor = progress * songDuration
                                 songs.seekTo((songCursor * 1000).toInt())
                             },
-                            modifier = Modifier
-                                .height(15.dp)
-                                .width(175.dp)
-                                .padding(vertical = 25.dp),
+                            modifier = Modifier.height(15.dp).width(175.dp).padding(vertical = 25.dp),
                         )
 
-                        IconButton(onClick = {/*TODO: next*/}) {
+
+                        IconButton(onClick = {
+                            if (queueSongs.isEmpty()) {
+                                if (songs.existsHistory()){
+                                    currentsong = songs.playFromHistory(songList)
+                                }
+                            }
+                            else {
+                                queueSongs.removeAt(0)
+                                currentsong = songs.playNext(songList)
+                            }
+                        }) {
                             Icon(painterResource(R.drawable.next), contentDescription = "Next", modifier = Modifier.size(15.dp))
                         }
 
-                        IconButton(onClick = {/*TODO: repeat*/}) {
-                            Icon(painter = painterResource(R.drawable.repeat), contentDescription = "Repeat", modifier = Modifier.size(30.dp))
+                        IconButton(onClick = {
+                            if (songs.isPlaying()) {
+                                tog = !tog
+                                currentsong = songs.playRepeat(songList, tog)
+                            }
+                        }) {
+                            Icon(painter = painterResource(R.drawable.repeat), tint = repeatTint, contentDescription = "Repeat", modifier = Modifier.size(30.dp)
+                            )
                         }
                     }
                 }
@@ -222,7 +286,10 @@ fun SongFrag(context: Context) {
                     actions = {
 
                         //CLEAR QUEUE
-                        IconButton(onClick = {/*TODO Radio*/ }) {
+                        IconButton(onClick = {
+                            songs.stop()
+                            queueSongs.clear()
+                        }) {
                             Icon(
                                 painterResource(R.drawable.recyclebin),
                                 contentDescription = "clear queue",
@@ -231,7 +298,14 @@ fun SongFrag(context: Context) {
                         }
 
                         //RADIO PLAY
-                        IconButton(onClick = { /*TODO sochenge */ }) {
+                        IconButton(onClick = {
+                            if (songs.isPlaying()){
+                                songs.addRandomSongToQueue(songList)
+                            } else {
+                                currentsong = songs.playRadio(songList)
+                            }
+                        }
+                        ) {
                             Icon(
                                 painter = painterResource(R.drawable.radio),
                                 contentDescription = "Radio",
@@ -241,7 +315,12 @@ fun SongFrag(context: Context) {
 
                         //PLAY QUEUE
                         IconButton(onClick = {
-                            songs.playFromQueue(queueSongs)
+                            if (queueSongs.isNotEmpty()) {
+                                currentsong = songs.playFromQueue(songList)
+                                queueSongs.clear()
+                                queueSongs.addAll(songs.getQueue(songList))
+
+                            }
                         }) {
                             Icon(
                                 painter = painterResource(R.drawable.play),
@@ -257,12 +336,17 @@ fun SongFrag(context: Context) {
                     LazyColumn (
                         Modifier.padding(values)
                     ){
-                        queueSongs = songs.getQueue(songList)
+                        queueSongs.clear()
+                        queueSongs.addAll(songs.getQueue(songList))
 
                         items(queueSongs.size) { index ->
-                            Text(
-                                text = queueSongs[index].name
-                            )
+                            ElevatedCard (
+                                Modifier.fillMaxWidth().padding(4.dp)
+                            ){ Text(
+                                text = queueSongs[index].name,
+                                fontSize = 18.sp,
+                                modifier = Modifier.padding(5.dp)
+                            )}
                         }
                     }
                 }
@@ -284,18 +368,22 @@ fun SongFrag(context: Context) {
                         .fillMaxWidth()
                         .clickable(
                             onClick = {
-                                songs.play(songList, selected)
+                                songs.play(songList, selected!!.songID)
+                                optionDialog = false
                             }
                         )
                     ){
-                        Text("$selectedsong", fontSize = 16.sp, maxLines = 1, modifier = Modifier.padding(vertical = 10.dp, horizontal = 20.dp))
+                        Text(selected!!.name, fontSize = 16.sp, maxLines = 1, modifier = Modifier.padding(vertical = 10.dp, horizontal = 20.dp))
                     }
                     ElevatedCard (
                         Modifier
                             .padding(vertical = 5.dp, horizontal = 10.dp)
                             .fillMaxWidth()
                             .clickable(
-                            onClick = {songs.addToQueue(selected)}
+                            onClick = {
+                                songs.addToQueue(selected!!.songID)
+                                optionDialog = false
+                            }
                         )
                     ) {
                         Text("Add to queue", fontSize = 16.sp,  modifier = Modifier.padding(vertical = 10.dp, horizontal = 20.dp))
@@ -305,7 +393,10 @@ fun SongFrag(context: Context) {
                             .padding(vertical = 5.dp, horizontal = 10.dp)
                             .fillMaxWidth()
                             .clickable(
-                                onClick = {/*TODO rename*/}
+                                onClick = {
+                                    renameDialog=true
+                                    optionDialog=false
+                                }
                             )
                     ) {
                         Text("Rename", fontSize = 16.sp,  modifier = Modifier.padding(vertical = 10.dp, horizontal = 20.dp))
@@ -325,6 +416,65 @@ fun SongFrag(context: Context) {
         }
     }
 
+    //NEW PLAYLIST DIALOG
+    if (optionNewPlaylist){
+        Dialog(onDismissRequest = {optionNewPlaylist=false}) {
+            Card {
+                Column {
+                    Text("Playlist Name:")
+                    //TextField()
+                }
+            }
+        }
+    }
+
+    //PLAYLIST DIALOG
+    //TODO Playlist dialog
+
+    //RENAME DIALOG
+    if (renameDialog){
+        Dialog(onDismissRequest = {renameDialog = false}) {
+            Card {
+                Column {
+                    Text("Sorry rename might not yet work", Modifier.padding(10.dp), color = Color.Red, fontSize = 18.sp)
+                    Text("NEW NAME:", Modifier.padding(10.dp), fontSize = 18.sp)
+                    OutlinedTextField(
+                        value = newName,
+                        onValueChange = { newName = it },
+                        placeholder = { Text(selected!!.name) }
+                    )
+                    ElevatedButton(onClick = {
+                        val contentResolver = context.contentResolver
+                        val newFileName = "$newName.${selected!!.extension}"
+
+                        val fileUri = selected?.uri ?: return@ElevatedButton // Ensure Uri is not null
+
+                        val values = ContentValues().apply {
+                            put(MediaStore.MediaColumns.DISPLAY_NAME, newFileName)
+                        }
+
+                        try {
+                            val updated = contentResolver.update(fileUri, values, null, null)
+                            if (updated > 0) {
+                                Toast.makeText(context, "Renamed successfully to $newFileName", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Renaming Failed", Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: SecurityException) {
+                            Toast.makeText(context, "Permission Denied", Toast.LENGTH_SHORT).show()
+                        }
+
+                        renameDialog = false
+                    }
+                        , Modifier.padding(10.dp)) {
+                        Text("Rename", Modifier.padding(5.dp), fontSize = 15.sp)
+                    }
+
+
+                }
+            }
+        }
+    }
     //MAIN SCREEN
     Scaffold(
         modifier = Modifier
@@ -347,16 +497,15 @@ fun SongFrag(context: Context) {
                     IconButton(onClick = {openQueueScreenDialog = true}) {
                         Icon(
                             painterResource(R.drawable.queue),
-                            contentDescription = "Radio",
+                            contentDescription = "Queue",
                             modifier = Modifier.size(20.dp))
                     }
                     IconButton(onClick = {
-                        songList = listSongs(context)
-                        Toast.makeText(context, "Songs Refreshed", Toast.LENGTH_SHORT).show()
+                        showBottomSheet = true
                     }) {
                         Icon(
-                            painter = painterResource(R.drawable.refr),
-                            contentDescription = "Refresh",
+                            painter = painterResource(R.drawable.playlist),
+                            contentDescription = "Playlist",
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -378,7 +527,7 @@ fun SongFrag(context: Context) {
         //SEARCH PANEL
         bottomBar = {
             BottomAppBar (
-                // TODO kuch to karenge
+                //TODO search
             ) {
                 OutlinedTextField(
                     value = searchText,
@@ -411,8 +560,8 @@ fun SongFrag(context: Context) {
                         item {
                             Text(
                                 text = "No Songs Found",
-                                fontSize = 18.sp,
-                                modifier = Modifier.padding(16.dp)
+                                fontSize = 20.sp,
+                                modifier = Modifier.padding(20.dp)
                             )
                         }
                     } else {
@@ -426,8 +575,7 @@ fun SongFrag(context: Context) {
                                     .height(45.dp)
                                     .combinedClickable(
                                         onClick = {
-                                            currentsong = songList[index].name
-                                            songs.play(songList, songList[index].songID)
+                                            currentsong = songs.play(songList, songList[index].songID)
                                             Toast.makeText(
                                                 context,
                                                 "Playing $currentsong",
@@ -436,11 +584,11 @@ fun SongFrag(context: Context) {
                                         },
                                         onLongClick = {
                                             optionDialog = true
-                                            selected = songList[index].songID
-                                            selectedsong = songList[index].name
+                                            //selected = songList[index].songID
+                                            selected = songList[index]
                                             Toast.makeText(
                                                 context,
-                                                "$selectedsong selected",
+                                                "${selected!!.name} selected",
                                                 Toast.LENGTH_SHORT
                                             ).show()
                                         })
@@ -460,6 +608,17 @@ fun SongFrag(context: Context) {
                             }
                         }
                     }
+                }
+            }
+            if (showBottomSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = {
+                        showBottomSheet = false
+                    },
+                    sheetState = sheetState
+                ) {
+                    //TODO Sheet content
+
                 }
             }
         }
@@ -487,6 +646,7 @@ fun listSongs(context: Context): MutableList<SongData> {
         while (it.moveToNext()) {
             val fullname = it.getString(nameColumn)
             val name = fullname.substringBeforeLast(".")
+            val extension = File(fullname).extension
             val filePath = it.getString(dataColumn)
             val songid = it.getInt(idColumn)
             val contentUri = ContentUris.withAppendedId(audioscan, it.getLong(idColumn))
@@ -497,15 +657,21 @@ fun listSongs(context: Context): MutableList<SongData> {
             if (size > 40000L) {
                 val folderPath = filePath.substringBeforeLast("/")
 
-                val song = SongData(songid, name, size, contentUri)
+                val song = SongData(songid, name, size, contentUri, extension)
                 folderMap.getOrPut(folderPath) { mutableListOf() }.add(song)
             }
         }
     }
 
     folderMap.values.forEach { songsInFolder ->
-        songListTemp.addAll(songsInFolder)
+        songListTemp.addAll(songsInFolder.sortedBy { it.name })
     }
 
+
     return songListTemp
+}
+
+
+fun getSearchList(songList: List<SongData>): List<String> {
+    return songList.map { "${it.name}: ${it.songID}" }
 }

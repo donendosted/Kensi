@@ -7,5 +7,6 @@ data class SongData (
     val name: String,
     val size: Long?,
     val uri: Uri?,
-    val duration: Int? = null
+    //val duration: Int? = null,
+    val extension: String,
 )

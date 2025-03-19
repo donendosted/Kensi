@@ -4,116 +4,41 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.net.Uri
+import android.os.Build
+import android.util.Log
+import androidx.annotation.RequiresApi
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
+import java.io.File
+import android.content.ContentValues.TAG
 
-/*
 class Songs(private val context: Context) {
     private var mediaPlayer: MediaPlayer? = null
     private var currentSongId: Int? = null
     private val queue = mutableListOf<Int>()
+    private val history = mutableListOf<Int>()
 
-    fun play(songList: List<SongData>, songId: Int) {
+    fun play(songList: List<SongData>, songId: Int): String {
         stop()
         queue.clear()
         queue.add(songId)
-        playFromQueue(context, songList)
+        return playFromQueue(songList)
     }
 
-    fun playFromQueue(context: Context, songList: List<SongData>) {
-        if (queue.isEmpty()) return
+    fun playFromQueue(songList: List<SongData>): String {
+        if (queue.isEmpty()) return ""
 
         val songId = queue.first()
-        val song = songList.find { it.songID == songId } ?: return // Find song by actual ID
+        if (songId==0) return ""
 
-        val uri: Uri = song.uri
-        mediaPlayer?.release() // Release old player
+        history.add(songId)
 
-        mediaPlayer = MediaPlayer().apply {
-            setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .build()
-            )
-            setDataSource(context, uri)
-            prepare()
-            start()
-        }
+        val song = songList.find { it.songID == songId } ?: return ""
 
-        currentSongId = songId
-        mediaPlayer?.setOnCompletionListener { queue.removeAt(0) } // Remove song when finished
-    }
+        val songName = song.name // Get song name before playback starts
+        val uri: Uri = song.uri ?: return ""
 
-    fun pause() {
-        if (mediaPlayer?.isPlaying == true) {
-            mediaPlayer?.pause()
-        }
-    }
-
-    fun resume() {
-        if (queue.isNotEmpty() && mediaPlayer?.isPlaying == false) {
-            mediaPlayer?.start()
-        }
-    }
-
-    fun stop() {
-        mediaPlayer?.stop()
         mediaPlayer?.release()
-        mediaPlayer = null
-        queue.clear()
-    }
-
-    fun addToQueue(songId: Int) {
-        queue.add(songId)
-    }
-
-    fun isPlaying(): Boolean {
-        return mediaPlayer?.isPlaying == true
-    }
-
-    fun isQueueEmpty(): Boolean {
-        return queue.isEmpty()
-    }
-
-    fun clearQueue() {
-        queue.clear()
-    }
-
-    // ✅ Get song duration in milliseconds
-    fun getSongDuration(): Int {
-        return mediaPlayer?.duration ?: 0
-    }
-
-    // ✅ Get current playback position in milliseconds
-    fun currentPosition(): Int {
-        return mediaPlayer?.currentPosition ?: 0
-    }
-
-    fun seekTo(position: Int) {
-        mediaPlayer?.seekTo(position)
-    }
-}
-*/
-
-class Songs(private val context: Context) {
-    private var mediaPlayer: MediaPlayer? = null
-    private var currentSongId: Int? = null
-    private val queue = mutableListOf<Int>()
-
-    fun play(songList: List<SongData>, songId: Int) {
-        stop()
-        queue.clear()
-        queue.add(songId)
-        playFromQueue(songList)
-    }
-
-    fun playFromQueue(songList: List<SongData>) {
-        if (queue.isEmpty()) return
-
-        val songId = queue.first()
-        val song = songList.find { it.songID == songId } ?: return // Find song by actual ID
-
-        val uri: Uri = song.uri ?: return
-        mediaPlayer?.release() // Release old player
 
         mediaPlayer = MediaPlayer().apply {
             setAudioAttributes(
@@ -134,9 +59,12 @@ class Songs(private val context: Context) {
         currentSongId = songId
         mediaPlayer?.setOnCompletionListener {
             queue.removeAt(0)
-            playFromQueue(songList) // Play next song if queue isn't empty
+            playFromQueue(songList)
         }
+
+        return songName // Return song name before playback starts
     }
+
 
     fun pause() {
         if (mediaPlayer?.isPlaying == true) mediaPlayer?.pause()
@@ -161,10 +89,6 @@ class Songs(private val context: Context) {
 
     fun isQueueEmpty(): Boolean = queue.isEmpty()
 
-    fun clearQueue() {
-        queue.clear()
-    }
-
     fun getSongDuration(): Int = mediaPlayer?.duration ?: 0
 
     fun currentPosition(): Int = mediaPlayer?.currentPosition ?: 0
@@ -177,4 +101,57 @@ class Songs(private val context: Context) {
         return queue.mapNotNull { id -> songList.find { it.songID == id } }
     }
 
+    fun playNext(songList: List<SongData>): String {
+        if (queue.isEmpty()) {
+            return playFromHistory(songList)
+        }
+        else {
+            queue.removeAt(0)
+            return playFromQueue(songList)
+        }
+    }
+
+    fun isNotPrepared(): Boolean {
+        return !mediaPlayer?.isPlaying!! && currentPosition() == 0
+    }
+
+    fun addRandomSongToQueue(playlist: List<SongData>) {
+        val randomSong = playlist.random()
+        addToQueue(randomSong.songID)
+    }
+
+    fun playRadio(playlist: List<SongData>): String {
+        if (playlist.isEmpty()) return ""
+
+        if (isQueueEmpty()) {
+            addRandomSongToQueue(playlist)
+            return playFromQueue(playlist)
+        }
+        mediaPlayer?.setOnCompletionListener {
+            playNext(playlist)
+            addRandomSongToQueue(playlist)
+        }
+        return ""
+    }
+
+    fun playFromHistory(songList: List<SongData>): String {
+        if (history.size > 1) {
+            val previousSongID = history[history.size - 2]
+            queue.add(0, previousSongID)
+            return playFromQueue(songList)
+        }
+        return ""
+    }
+
+    fun existsHistory(): Boolean {
+        return history.size>1
+    }
+
+    fun playRepeat(songList: List<SongData>, tog: Boolean): String {
+        while (tog) {
+            queue.add(history[history.size-1])
+            return playFromQueue(songList)
+        }
+        return ""
+    }
 }
