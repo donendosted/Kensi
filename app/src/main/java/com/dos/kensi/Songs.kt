@@ -4,13 +4,6 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.net.Uri
-import android.os.Build
-import android.util.Log
-import androidx.annotation.RequiresApi
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.json.Json
-import java.io.File
-import android.content.ContentValues.TAG
 
 class Songs(private val context: Context) {
     private var mediaPlayer: MediaPlayer? = null
@@ -123,6 +116,7 @@ class Songs(private val context: Context) {
     fun playRadio(playlist: List<SongData>): String {
         if (playlist.isEmpty()) return ""
 
+        queue.clear()
         if (isQueueEmpty()) {
             addRandomSongToQueue(playlist)
             return playFromQueue(playlist)

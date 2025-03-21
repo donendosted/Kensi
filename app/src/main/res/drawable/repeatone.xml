@@ -27,4 +27,24 @@
       android:fillColor="#ffffff"
       android:strokeColor="#ffffff"
       android:strokeLineCap="square"/>
+  <path
+      android:pathData="M40.52,46.9C53.53,38.48 53.53,38.48 53.53,38.48V68.07"
+      android:strokeAlpha="0.98"
+      android:strokeLineJoin="bevel"
+      android:strokeWidth="9"
+      android:fillColor="#00000000"
+      android:strokeColor="#ffffff"
+      android:fillType="evenOdd"
+      android:fillAlpha="0.98"
+      android:strokeLineCap="butt"/>
+  <path
+      android:pathData="M40.52,46.9C53.53,38.48 53.53,38.48 53.53,38.48V68.07"
+      android:strokeAlpha="0.98"
+      android:strokeLineJoin="bevel"
+      android:strokeWidth="9"
+      android:fillColor="#00000000"
+      android:strokeColor="#00000000"
+      android:fillType="evenOdd"
+      android:fillAlpha="0.98"
+      android:strokeLineCap="butt"/>
 </vector>
