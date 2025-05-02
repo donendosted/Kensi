@@ -9,4 +9,6 @@ If you  like the app, keep waiting, I'll finish it soon. Raise issue for every b
 
 EDIT: Also, my smart phone has broken down so currently, This project stays discontinued. Will finish or start a new app because had learnt lot many things new after initialising the project, once I buy a new phone.
 
+EDIT (03.05.2025) : With no physical device to use this application, I see no use to build this app. Hence, archiving it.
+
  Thanks. ~dos
